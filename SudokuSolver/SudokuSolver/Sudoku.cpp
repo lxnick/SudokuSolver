@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "Sudoku.h"
 
-int	COLUMN_OFFSET[DIGITS][DIGITS] =
+int	COLUMN_OFFSET[DIGIT_COUNT][DIGIT_COUNT] =
 {
 	{ 0, 9,18,27,36,45,54,63,72 },
 	{ 1,10,19,28,37,46,55,64,73 },
@@ -14,7 +14,7 @@ int	COLUMN_OFFSET[DIGITS][DIGITS] =
 	{ 8,17,26,35,44,53,62,71,80 },
 };
 
-int	ROW_OFFSET[DIGITS][DIGITS] =
+int	ROW_OFFSET[DIGIT_COUNT][DIGIT_COUNT] =
 {
 	{ 0, 1, 2, 3, 4, 5, 6, 7, 8 },
 	{ 9,10,11,12,13,14,15,16,17 },
@@ -27,7 +27,7 @@ int	ROW_OFFSET[DIGITS][DIGITS] =
 	{ 72,73,74,75,76,77,78,79,80 },
 };
 
-int	GROUP_OFFSET[DIGITS][DIGITS] =
+int	GROUP_OFFSET[DIGIT_COUNT][DIGIT_COUNT] =
 {
 	{ 0, 1, 2, 9,10,11,18,19,20 },
 	{ 3, 4, 5,12,13,14,21,22,23 },
@@ -40,7 +40,7 @@ int	GROUP_OFFSET[DIGITS][DIGITS] =
 	{ 60,61,62,69,70,71,78,79,80 },
 };
 
-int POSITION_ROW[ELEMENTS] =
+int POSITION_ROW[CELL_COUNT] =
 {
 	0,0,0,0,0,0,0,0,0,
 	1,1,1,1,1,1,1,1,1,
@@ -53,7 +53,7 @@ int POSITION_ROW[ELEMENTS] =
 	8,8,8,8,8,8,8,8,8,
 };
 
-int POSITION_COLUMN[ELEMENTS] =
+int POSITION_COLUMN[CELL_COUNT] =
 {
 	0,1,2,3,4,5,6,7,8,
 	0,1,2,3,4,5,6,7,8,
@@ -66,7 +66,7 @@ int POSITION_COLUMN[ELEMENTS] =
 	0,1,2,3,4,5,6,7,8,
 };
 
-int POSITION_GROUP[ELEMENTS] =
+int POSITION_GROUP[CELL_COUNT] =
 {
 	0, 0, 0, 1, 1, 1, 2, 2, 2,
 	0, 0, 0, 1, 1, 1, 2, 2, 2,
@@ -80,12 +80,12 @@ int POSITION_GROUP[ELEMENTS] =
 };
 
 
-unsigned short PATTERN_MASK[DIGITS] =
+unsigned short PATTERN_MASK[DIGIT_COUNT] =
 {
 	1,2,4,8,16,32,64,128,256,
 };
 
-unsigned short BIT_COUNT[DEFAULT_POSSIBLE + 1] = 
+unsigned short BIT_COUNT[UNIVERSAL_SET + 1] =
 {
 	0, 1, 1, 
 
@@ -93,11 +93,11 @@ unsigned short BIT_COUNT[DEFAULT_POSSIBLE + 1] =
 
 CSudoku::CSudoku()
 {
-	for (int i = 0; i <= DEFAULT_POSSIBLE; i++)
+	for (int i = 0; i <= UNIVERSAL_SET; i++)
 	{
 		int bit_count = 0;
 
-		for (int j = 0; j < DIGITS; j++)
+		for (int j = 0; j < DIGIT_COUNT; j++)
 		{
 			if (i & (1 << j))
 				bit_count++;
@@ -115,32 +115,32 @@ CSudoku::~CSudoku()
 bool CSudoku::Init(char * pszPattern)
 {
 	SUDOKU_BOARD	board;
-	for (int i = 0; i < ELEMENTS; i++)
+	for (int i = 0; i < CELL_COUNT; i++)
 	{
 		char ch = *pszPattern++;
 		if (ch >= '1' && ch <= '9')
 		{
 			board.Pattern[i] = ch;
-			board.PositionPossible[i] = 0;
+			board.CellSet[i] = 0;
 		}
 		else
 		{
 			board.Pattern[i] = ' ';
-			board.PositionPossible[i] = DEFAULT_POSSIBLE;
+			board.CellSet[i] = UNIVERSAL_SET;
 		}
 	}
 
-	board.Pattern[ELEMENTS] = '\0';
+	board.Pattern[CELL_COUNT] = '\0';
 
-	for (int i = 0; i < DIGITS; i++)
+	for (int i = 0; i < DIGIT_COUNT; i++)
 	{
-		if (!CollectPossible(&board, &ROW_OFFSET[i][0], &board.RowPossible[i]))
+		if (!CollectPossible(&board, &ROW_OFFSET[i][0], &board.RowSet[i]))
 			return false;
 
-		if (!CollectPossible(&board, &COLUMN_OFFSET[i][0], &board.ColumnPossible[i]))
+		if (!CollectPossible(&board, &COLUMN_OFFSET[i][0], &board.ColumnSet[i]))
 			return false;
 
-		if (!CollectPossible(&board, &GROUP_OFFSET[i][0], &board.GroupPossible[i]))
+		if (!CollectPossible(&board, &GROUP_OFFSET[i][0], &board.BlockSet[i]))
 			return false;
 	}
 
@@ -153,7 +153,7 @@ bool CSudoku::CollectPossible(LPSUDOKU_BOARD lpBoard, int* nOffset, unsigned sho
 {
 	unsigned short symbol_found = 0;
 
-	for (int i = 0; i < DIGITS; i++)
+	for (int i = 0; i < DIGIT_COUNT; i++)
 	{
 		char ch = lpBoard->Pattern[ *nOffset ++ ];
 
@@ -167,33 +167,40 @@ bool CSudoku::CollectPossible(LPSUDOKU_BOARD lpBoard, int* nOffset, unsigned sho
 		}
 	}
 
-	*pnPossible = DEFAULT_POSSIBLE ^ symbol_found;
+	*pnPossible = UNIVERSAL_SET ^ symbol_found;
 	return true;
 }
 
 bool CSudoku::IsFinal(LPSUDOKU_BOARD lpBoard)
 {
-	for (int i = 0; i < ELEMENTS; i++)
-		if (lpBoard->PositionPossible[i] != 0)
+	for (int i = 0; i < CELL_COUNT; i++)
+		if (lpBoard->CellSet[i] != 0)
 			return false;
 
 	return true;
 }
 
-bool CSudoku::UpdatePossible(int nPos, LPSUDOKU_BOARD lpBoard)
+bool CSudoku::UpdatePossible(int nPos,int bit, LPSUDOKU_BOARD lpBoard)
 {
 	int row = POSITION_ROW[nPos];
 	int column = POSITION_COLUMN[nPos];
 	int group = POSITION_GROUP[nPos];
 
-	if (!CollectPossible(lpBoard, &ROW_OFFSET[row][0], &lpBoard->RowPossible[row]))
+	lpBoard->RowSet[row] ^= bit;
+	lpBoard->ColumnSet[column] ^= bit;
+	lpBoard->BlockSet[group] ^= bit;
+
+#if 0
+	if (!CollectPossible(lpBoard, &ROW_OFFSET[row][0], &lpBoard->RowSet[row]))
 		return false;
 
-	if (!CollectPossible(lpBoard,&COLUMN_OFFSET[column][0], &lpBoard->ColumnPossible[column]))
+	if (!CollectPossible(lpBoard,&COLUMN_OFFSET[column][0], &lpBoard->ColumnSet[column]))
 		return false;
 
-	if (!CollectPossible(lpBoard, &GROUP_OFFSET[group][0], &lpBoard->GroupPossible[group]))
+	if (!CollectPossible(lpBoard, &GROUP_OFFSET[group][0], &lpBoard->BlockSet[group]))
 		return false;
+#endif
+
 
 	return true;
 }
@@ -201,7 +208,7 @@ bool CSudoku::UpdatePossible(int nPos, LPSUDOKU_BOARD lpBoard)
 void CSudoku::PrintBoard(LPSUDOKU_BOARD lpBoard)
 {
 	printf("---------\n");
-	for (int i = 0; i < ELEMENTS; i += DIGITS)
+	for (int i = 0; i < CELL_COUNT; i += DIGIT_COUNT)
 		printf("%c%c%c%c%c%c%c%c%c\n",
 			lpBoard->Pattern[i + 0],
 			lpBoard->Pattern[i + 1],
@@ -214,9 +221,9 @@ void CSudoku::PrintBoard(LPSUDOKU_BOARD lpBoard)
 			lpBoard->Pattern[i + 8]
 		);
 
-	for (int i = 0; i < ELEMENTS; i++)
+	for (int i = 0; i < CELL_COUNT; i++)
 	{
-		if (lpBoard->PositionPossible[i] == 0)
+		if (lpBoard->CellSet[i] == 0)
 			if (lpBoard->Pattern[i] == ' ')
 				printf("Error\n");
 	}
@@ -226,46 +233,51 @@ void CSudoku::PrintBoard(LPSUDOKU_BOARD lpBoard)
 int Step = 0;
 bool CSudoku::Improve(LPSUDOKU_BOARD lpBoard, SUDOKU_BOARD_LIST* pGuess)
 {
-	printf("Step = %d\n", Step);
+//	printf("Step = %d\n", Step);
 	Step++;
 
 	bool bImprove = false;
 
 
-	for (int i = 0; i < ELEMENTS; i++)
+	for (int i = 0; i < CELL_COUNT; i++)
 	{
-		if (lpBoard->PositionPossible[i] == 0)
+		if (lpBoard->CellSet[i] == 0)
 			continue;
 
-		unsigned short raw_possible = lpBoard->RowPossible[POSITION_ROW[i]];
-		unsigned short column_possible = lpBoard->ColumnPossible[POSITION_COLUMN[i]];
-		unsigned short group_possible = lpBoard->GroupPossible[POSITION_GROUP[i]];
+		unsigned short raw_possible = lpBoard->RowSet[POSITION_ROW[i]];
+		unsigned short column_possible = lpBoard->ColumnSet[POSITION_COLUMN[i]];
+		unsigned short group_possible = lpBoard->BlockSet[POSITION_GROUP[i]];
 		unsigned short position_possible = raw_possible & column_possible & group_possible;
 
-		if (position_possible == lpBoard->PositionPossible[i])
+		// No changed
+		if (position_possible == lpBoard->CellSet[i])
 			continue;
 
+		// Failed
 		if (position_possible == 0)
+		{
+//			PrintBoard(lpBoard);
 			return false;
+		}
 
 ///		PrintBoard(lpBoard);
-		lpBoard->PositionPossible[i] = position_possible;
+		lpBoard->CellSet[i] = position_possible;
 //		PrintBoard(lpBoard);
 
 		if (BIT_COUNT[position_possible] != 1)
 			continue;
 
 		// Find only solved item ( only 1 bit is true )
-		for (int j = 0; j < DIGITS; j++)
+		for (int j = 0; j < DIGIT_COUNT; j++)
 		{
 			if (position_possible == PATTERN_MASK[j])
 			{
 				bImprove = true;
 				lpBoard->Pattern[i] = j + '1';
-				lpBoard->PositionPossible[i] = 0;
+				lpBoard->CellSet[i] = 0;
 
-				printf("Set %d to %c\n", i, lpBoard->Pattern[i]);
-				UpdatePossible(i, lpBoard);
+//				printf("Set %d to %c\n", i, lpBoard->Pattern[i]);
+				UpdatePossible(i, 1<< j, lpBoard);
 			}
 		}
 	}
@@ -273,23 +285,23 @@ bool CSudoku::Improve(LPSUDOKU_BOARD lpBoard, SUDOKU_BOARD_LIST* pGuess)
 	if (bImprove)
 		return true;
 
-	int min_possible = DIGITS;
+	int min_possible = DIGIT_COUNT;
 	int min_position = 0;
-	for (int i = 0; i < ELEMENTS; i++)
+	for (int i = 0; i < CELL_COUNT; i++)
 	{
-		if (lpBoard->PositionPossible[i] == 0)
+		if (lpBoard->CellSet[i] == 0)
 			continue;
 
-		int bit_count = BIT_COUNT[lpBoard->PositionPossible[i]];
+		int bit_count = BIT_COUNT[lpBoard->CellSet[i]];
 
-		if (BIT_COUNT[lpBoard->PositionPossible[i]] < min_possible)
+		if (BIT_COUNT[lpBoard->CellSet[i]] < min_possible)
 		{
-			min_possible = BIT_COUNT[lpBoard->PositionPossible[i]];
+			min_possible = BIT_COUNT[lpBoard->CellSet[i]];
 			min_position = i;
 		}
 	}
 
-	if (min_possible == DIGITS)
+	if (min_possible == DIGIT_COUNT)
 	{
 		// It should be a final 
 		SUDOKU_BOARD board = *lpBoard;
@@ -297,33 +309,20 @@ bool CSudoku::Improve(LPSUDOKU_BOARD lpBoard, SUDOKU_BOARD_LIST* pGuess)
 		return false;
 	}
 
-	char possible_char[DIGITS];
-	char * possible_char_ptr = possible_char;
-	for (int i = 0; i < DIGITS; i++)
+	for (int i = 0; i < DIGIT_COUNT; i++)
 	{
-		if (lpBoard->PositionPossible[min_position] & (1 << i))
+		SUDOKU_BOARD board = *lpBoard;
+
+		if (lpBoard->CellSet[min_position] & (1 << i))
 		{
-			*possible_char_ptr = '1' + i;
-			possible_char_ptr ++;
+			board.Pattern[min_position] = '1' + i;
+			board.CellSet[min_position] = 0;
+
+			UpdatePossible(min_position, (1 << i), &board);
+			pGuess->push_back(board);
 		}
 	}
 
-
-	for (int i = 0; i < min_possible; i++)
-	{
-		SUDOKU_BOARD board = *lpBoard;
-		board.Pattern[min_position] = possible_char[i];
-		board.PositionPossible[min_position] = 0;
-
-		printf("Guess %d to %c\n", min_position, possible_char[i]);
-
-		if (board.Pattern[0] != '6')
-			printf("Board Head %c\n", board.Pattern[0] );
-
-		UpdatePossible(min_position, &board);
-
-		pGuess->push_back(board);
-	}
 
 	return false;
 }
@@ -335,7 +334,7 @@ int CSudoku::Solve()
 	if (board_list.size() == 1)
 	{
 		SUDOKU_BOARD	start = board_list.front();
-		PrintBoard(&start);
+//		PrintBoard(&start);
 	}
 
 	while (board_list.size() != 0)
@@ -345,11 +344,12 @@ int CSudoku::Solve()
 
 		SUDOKU_BOARD_LIST guess_list;
 
-		PrintBoard(&board);
+//		PrintBoard(&board);
+		// All Cell were assigned
 		if (IsFinal(&board))
 		{
-			printf("\nSolved");
-			PrintBoard(&board);
+//			printf("\nSolved");
+//			PrintBoard(&board);
 
 			nSolveCount++;
 			continue;
@@ -357,8 +357,8 @@ int CSudoku::Solve()
 
 		while (Improve(&board, &guess_list))
 		{
-			printf("\nImprove");
-			PrintBoard(&board);
+//			printf("\nImprove");
+//			PrintBoard(&board);
 		}
 	
 		board_list.splice(board_list.end(), guess_list);
@@ -367,3 +367,57 @@ int CSudoku::Solve()
 
 	return nSolveCount;
 }
+
+bool CSudoku::IsSolved(char * pszPattern)
+{
+	Init(pszPattern);
+
+	SUDOKU_BOARD	board = board_list.front();
+
+	while(board_list.size() != 0 )
+		board_list.pop_front();
+
+	if (IsFinal(&board))
+		return true;
+
+	return false;
+}
+
+bool IsValid(char * pszPattern)
+{
+	for (int i = 0; i < CELL_COUNT; i++)
+		if (pszPattern[i] < '0' || pszPattern[i] > '9')
+			return false;
+
+	return true;
+}
+
+#if 0
+void genSudokuBoard(int grid[ ], int display[ ]){
+int i,c, j, rowNum, colNum, blockNum;
+
+for(c=0; c<N*N; c++) {
+blockNum = colNum = 1;
+//rowNum = c / N;
+//colNum = c % N;
+//blockNum = (rowNum / 3) * 3 + (colNum / 3);
+for (j=0; j<N; j++)
+printf("%d", grid[((blockNum/3)*N*3) + (colNum/3)*3 + (j/3)*N + j%3]);
+}
+
+
+printf("\n");
+for(i=0; i<N*N; i++) {  /* displaying all N*N numbers in the 'grid' array */
+
+if (i%N == 0 && i != 0) { /* printing a newline for every multiple of N */
+	printf("\n");
+}
+printf("%d ", grid[i]);
+}
+printf("\n");
+
+return 0;
+
+
+}
+#endif
